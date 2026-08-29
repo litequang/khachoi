@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isUserActive() {
+      return getUserData().active == true;
+    }
+
+    function getUserRole() {
+      return getUserData().role;
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // Users Collection
+    match /users/{userId} {
+      // Users can read their own document, or active users can read all users (for UI rendering names)
+      allow read: if isSignedIn() && (request.auth.uid == userId || isUserActive());
+      
+      // Only Admin can write users, EXCEPT users can create their own document if it doesn't exist
+      allow write: if isSignedIn() && (
+        (isUserActive() && getUserRole() == 'ADMIN')
+        ||
+        (request.auth.uid == userId && !exists(/databases/$(database)/documents/users/$(userId)))
+      );
+    }
+
+    // Tasks Collection
+    match /tasks/{taskId} {
+      // Any active user can read
+      allow read: if isSignedIn() && isUserActive();
+
+      // Create
+      allow create: if isSignedIn() && isUserActive();
+
+      // Update
+      allow update: if isSignedIn() && isUserActive() && (
+        // Action: Update Status (Designer / Sale / Admin)
+        (
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedByUid', 'updatedByName', 'designCompletedAt', 'sapoOrderedAt', 'noOrderAt', 'sapoOrderCode'])
+          && incoming().status in ['DESIGNING', 'WAITING_DEPOSIT', 'SAPO_ORDERED', 'NO_ORDER']
+          && incoming().updatedByUid == request.auth.uid
+        )
+        ||
+        // Action: Designer Click Increment
+        (
+          getUserRole() == 'DESIGNER'
+          && incoming().diff(existing()).affectedKeys().hasOnly(['linkClickCount', 'updatedAt', 'updatedByUid', 'updatedByName'])
+          && incoming().linkClickCount == existing().linkClickCount + 1
+          && incoming().updatedByUid == request.auth.uid
+        )
+        ||
+        // Action: Admin full overwrite (Restore Backup)
+        (
+          getUserRole() == 'ADMIN'
+        )
+      );
+
+      // Delete (Admin only, though V1 says no need to delete, good to have admin power)
+      allow delete: if isSignedIn() && isUserActive() && getUserRole() == 'ADMIN';
+    }
+  }
+}
