@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Task Công Việc</title>
+    <meta name="description" content="Hệ thống quản lý tiến độ thiết kế" />
+    <meta name="theme-color" content="#ffffff" />
+    
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json?v=999" />
+
+    <script>
+      // Đăng ký Service Worker an toàn và đơn giản nhất
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').then((reg) => {
+            console.log('ServiceWorker registered perfectly.', reg.scope);
+            
+            // Xóa mọi SW rác nếu có
+            reg.onupdatefound = () => {
+              const installingWorker = reg.installing;
+              if (installingWorker) {
+                installingWorker.onstatechange = () => {
+                  if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    // Xóa cache cũ khi có bản mới
+                    window.location.reload();
+                  }
+                };
+              }
+            };
+          }).catch((err) => {
+            console.error('ServiceWorker registration failed: ', err);
+          });
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-C69kwgBB.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CmrZJVCA.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
