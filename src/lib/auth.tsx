@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           if (docSnap.exists()) {
             const userData = docSnap.data();
             if (userData.active) {
-               setUser({ uid: firebaseUser.uid, ...userData } as User);
+               setUser({ uid: firebaseUser.uid, displayName: userData.name || userData.displayName, ...userData } as User);
             } else {
                // User is not active, treat as logged out internally
                setUser(null);

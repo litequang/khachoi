@@ -25,7 +25,12 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Info, 
-  Sparkles 
+  Sparkles,
+  List,
+  Grid2x2,
+  Grid3x3,
+  Eye,
+  User
 } from 'lucide-react';
 
 export const Dashboard = () => {
@@ -38,10 +43,10 @@ export const Dashboard = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<Task['status']>('DESIGNING');
   const [rejectTask, setRejectTask] = useState<Task | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'grid2' | 'grid3'>('list');
 
   // Search & Pagination controls for SAPO_ORDERED and NO_ORDER tabs
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCreator, setFilterCreator] = useState<string>('ALL');
   const [pageSize, setPageSize] = useState<number>(20);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
@@ -65,113 +70,60 @@ export const Dashboard = () => {
   // Reset pagination when changing tab or search
   useEffect(() => {
     setCurrentPage(1);
-    if (activeTab === 'DESIGNING') setFilterCreator('ALL');
-  }, [activeTab, searchTerm, pageSize, filterCreator]);
+  }, [activeTab, searchTerm, pageSize]);
 
-  const getMs = (ts: any, fallback: number | null = 0): any => { if (!ts) return fallback; if (typeof ts?.toMillis === "function") return ts.toMillis(); if (ts?.seconds) return ts.seconds * 1000; if (typeof ts === "number") return ts; if (typeof ts === "string") { const p = new Date(ts).getTime(); return isNaN(p) ? fallback : p; } if (ts instanceof Date) return ts.getTime(); return fallback; };
+  const getMs = (ts: any) => ts?.toMillis ? ts.toMillis() : (ts?.seconds ? ts.seconds * 1000 : 0);
 
   // 1. Tab Đang thiết kế: sắp xếp từ cũ -> mới (ưu tiên làm trước)
-  const uniqueCreators = useMemo(() => {
-    const creators = new Set<string>();
-    tasks.forEach(t => {
-      if (t.createdByName) creators.add(t.createdByName);
-    });
-    return Array.from(creators).sort();
-  }, [tasks]);
-
-  const { designingNewTasks, designingInProgressTasks, designingTasks } = useMemo(() => {
-    const designing = tasks.filter(t => t.status === 'DESIGNING');
-    
-    // Task mới tạo: chưa có ai click mở link -> Sắp xếp Cũ -> Mới (theo createdAt)
-    const newTasks = designing
-      .filter(t => !t.linkClickCount || t.linkClickCount === 0)
-      .sort((a, b) => getMs(a.createdAt, 8640000000000000) - getMs(b.createdAt, 8640000000000000));
-      
-    // Task đang làm: đã có designer click mở link -> Sắp xếp Cũ -> Mới (theo updatedAt)
-    const inProgressTasks = designing
-      .filter(t => t.linkClickCount && t.linkClickCount > 0)
-      .sort((a, b) => getMs(a.updatedAt, 8640000000000000) - getMs(b.updatedAt, 8640000000000000));
-
-    return {
-      designingNewTasks: newTasks,
-      designingInProgressTasks: inProgressTasks,
-      designingTasks: designing
-    };
+  const designingTasks = useMemo(() => {
+    return tasks
+      .filter(t => t.status === 'DESIGNING')
+      .sort((a, b) => getMs(a.createdAt || a.updatedAt) - getMs(b.createdAt || b.updatedAt));
   }, [tasks]);
 
   // 2. Tab Đợi cọc: sắp xếp từ CŨ -> MỚI (ưu tiên xử lý khách đã hoàn thành thiết kế từ lâu)
   const waitingTasks = useMemo(() => {
     return tasks
       .filter(t => t.status === 'WAITING_DEPOSIT')
-      .sort((a, b) => (getMs(a.designCompletedAt, null) ?? getMs(a.updatedAt, 8640000000000000)) - (getMs(b.designCompletedAt, null) ?? getMs(b.updatedAt, 8640000000000000)));
+      .sort((a, b) => getMs(a.designCompletedAt || a.updatedAt) - getMs(b.designCompletedAt || b.updatedAt));
   }, [tasks]);
 
   // 3. Tab Đã lên đơn Sapo: sắp xếp từ MỚI -> CŨ (đơn mới lên nằm ở trên cùng)
   const allSapoTasks = useMemo(() => {
     return tasks
       .filter(t => t.status === 'SAPO_ORDERED')
-      .sort((a, b) => (getMs(b.sapoOrderedAt, null) ?? getMs(b.updatedAt, 0)) - (getMs(a.sapoOrderedAt, null) ?? getMs(a.updatedAt, 0)));
+      .sort((a, b) => getMs(b.sapoOrderedAt || b.updatedAt) - getMs(a.sapoOrderedAt || a.updatedAt));
   }, [tasks]);
 
   // 4. Tab Đuổi khách: sắp xếp từ MỚI -> CŨ (khách vừa đuổi nằm ở trên cùng)
   const allNoOrderTasks = useMemo(() => {
     return tasks
       .filter(t => t.status === 'NO_ORDER')
-      .sort((a, b) => (getMs(b.noOrderAt, null) ?? getMs(b.updatedAt, 0)) - (getMs(a.noOrderAt, null) ?? getMs(a.updatedAt, 0)));
+      .sort((a, b) => getMs(b.noOrderAt || b.updatedAt) - getMs(a.noOrderAt || a.updatedAt));
   }, [tasks]);
 
   // Search filtering for SAPO and NO_ORDER tabs
-  const filteredWaitingTasks = useMemo(() => {
-    let result = waitingTasks;
-    if (filterCreator !== 'ALL') {
-      result = result.filter(t => t.createdByName === filterCreator);
-    }
-    if (!searchTerm.trim()) return result;
-    const term = searchTerm.trim().toLowerCase();
-    return result.filter(t => 
-      (t.name && t.name.toLowerCase().includes(term)) ||
-      (t.sapoOrderCode && t.sapoOrderCode.toLowerCase().includes(term)) ||
-      (t.updatedByName && t.updatedByName.toLowerCase().includes(term)) ||
-      (t.createdByName && t.createdByName.toLowerCase().includes(term))
-    );
-  }, [waitingTasks, searchTerm, filterCreator]);
-
   const filteredSapoTasks = useMemo(() => {
-    let result = allSapoTasks;
-    if (filterCreator !== 'ALL') {
-      result = result.filter(t => t.createdByName === filterCreator);
-    }
-    if (!searchTerm.trim()) return result;
+    if (!searchTerm.trim()) return allSapoTasks;
     const term = searchTerm.trim().toLowerCase();
-    return result.filter(t => 
+    return allSapoTasks.filter(t => 
       (t.name && t.name.toLowerCase().includes(term)) ||
       (t.sapoOrderCode && t.sapoOrderCode.toLowerCase().includes(term)) ||
       (t.updatedByName && t.updatedByName.toLowerCase().includes(term)) ||
       (t.createdByName && t.createdByName.toLowerCase().includes(term))
     );
-  }, [allSapoTasks, searchTerm, filterCreator]);
+  }, [allSapoTasks, searchTerm]);
 
   const filteredNoOrderTasks = useMemo(() => {
-    let result = allNoOrderTasks;
-    if (filterCreator !== 'ALL') {
-      result = result.filter(t => t.createdByName === filterCreator);
-    }
-    if (!searchTerm.trim()) return result;
+    if (!searchTerm.trim()) return allNoOrderTasks;
     const term = searchTerm.trim().toLowerCase();
-    return result.filter(t => 
+    return allNoOrderTasks.filter(t => 
       (t.name && t.name.toLowerCase().includes(term)) ||
       (t.sapoOrderCode && t.sapoOrderCode.toLowerCase().includes(term)) ||
       (t.updatedByName && t.updatedByName.toLowerCase().includes(term)) ||
       (t.createdByName && t.createdByName.toLowerCase().includes(term))
     );
-  }, [allNoOrderTasks, searchTerm, filterCreator]);
-
-  // Pagination for WAITING
-  const paginatedWaitingTasks = useMemo(() => {
-    if (pageSize === 0) return filteredWaitingTasks;
-    const start = (currentPage - 1) * pageSize;
-    return filteredWaitingTasks.slice(start, start + pageSize);
-  }, [filteredWaitingTasks, currentPage, pageSize]);
+  }, [allNoOrderTasks, searchTerm]);
 
   // Pagination for SAPO
   const paginatedSapoTasks = useMemo(() => {
@@ -202,7 +154,7 @@ export const Dashboard = () => {
           linkClickCount: increment(1),
           updatedAt: serverTimestamp(),
           updatedByUid: user.uid,
-          updatedByName: user.displayName || (user as any).name
+          updatedByName: user.displayName
         });
       } catch (error) {
         console.error("Lỗi cập nhật click:", error);
@@ -224,7 +176,7 @@ export const Dashboard = () => {
         status: newStatus,
         updatedAt: serverTimestamp(),
         updatedByUid: user?.uid,
-        updatedByName: user?.displayName || (user as any)?.name
+        updatedByName: user?.displayName
       };
 
       if (newStatus === 'WAITING_DEPOSIT') {
@@ -248,7 +200,7 @@ export const Dashboard = () => {
         status: 'NO_ORDER',
         updatedAt: serverTimestamp(),
         updatedByUid: user?.uid,
-        updatedByName: user?.displayName || (user as any)?.name,
+        updatedByName: user?.displayName,
         noOrderAt: serverTimestamp()
       });
       setRejectTask(null);
@@ -272,7 +224,7 @@ export const Dashboard = () => {
         sapoOrderedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         updatedByUid: user?.uid,
-        updatedByName: user?.displayName || (user as any)?.name
+        updatedByName: user?.displayName
       });
       setSapoModalOpen(false);
       setSapoCode('');
@@ -287,7 +239,7 @@ export const Dashboard = () => {
 
   const formatTime = (timestamp: any) => {
     if (!timestamp) return 'Chưa cập nhật';
-    const ms = getMs(timestamp, null);
+    const ms = timestamp?.toMillis ? timestamp.toMillis() : (timestamp?.seconds ? timestamp.seconds * 1000 : null);
     if (!ms) return 'Chưa cập nhật';
     
     const date = new Date(ms);
@@ -296,92 +248,105 @@ export const Dashboard = () => {
     });
   };
 
-  const renderTaskCard = (task: Task) => (
-    <div key={task.id} className="bg-white/60 border border-white/40 backdrop-blur-sm p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between hover:border-blue-300 transition-colors shadow-sm gap-4">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <h3 className="font-bold text-slate-800">{task.name}</h3>
+  const renderTaskCard = (task: Task) => {
+    const isGrid = viewMode !== 'list';
+    
+    return (
+      <div key={task.id} className={`bg-white/60 border border-white/40 backdrop-blur-sm p-4 rounded-2xl flex flex-col ${isGrid ? '' : 'sm:flex-row sm:items-center'} justify-between hover:border-blue-300 transition-colors shadow-sm gap-4`}>
+        <div className="flex flex-col gap-1.5 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-bold text-slate-800 truncate" title={task.name}>{task.name}</h3>
+            {task.status === 'WAITING_DEPOSIT' && (
+               <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-bold rounded-md border border-yellow-200 uppercase whitespace-nowrap">
+                 Đợi cọc
+               </span>
+            )}
+            {task.status === 'SAPO_ORDERED' && (
+               <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-md border border-green-200 uppercase whitespace-nowrap">
+                 Sapo: {task.sapoOrderCode}
+               </span>
+            )}
+            {task.status === 'NO_ORDER' && (
+               <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded-md border border-red-200 uppercase whitespace-nowrap">
+                 Đuổi khách
+               </span>
+            )}
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3 mt-0.5">
+            <button 
+              onClick={() => handleOpenLink(task)}
+              title="Mở Link thiết kế"
+              className="text-blue-600 hover:bg-blue-50 p-1.5 -ml-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold"
+            >
+              <ExternalLink className="w-4 h-4" />
+              {!isGrid && <span>Mở link</span>}
+            </button>
+            
+            <div className="flex items-center gap-1 text-slate-500 text-xs" title={`Số lần mở: ${task.linkClickCount || 0}`}>
+              <Eye className="w-3.5 h-3.5" />
+              <span className="font-bold text-slate-700">{task.linkClickCount || 0}</span>
+            </div>
+
+            <div className="flex items-center gap-1 text-slate-500 text-xs" title={`Người tạo: ${task.createdByName || 'admin'}`}>
+              <User className="w-3.5 h-3.5" />
+              <span className="truncate max-w-[80px] font-medium">{task.createdByName || 'admin'}</span>
+            </div>
+
+            <div className="flex items-center gap-1 text-slate-500 text-xs" title={`Cập nhật cuối: ${formatTime(task.updatedAt)} bởi ${task.updatedByName || 'admin'}`}>
+              <Clock className="w-3.5 h-3.5" />
+              <span className="truncate max-w-[80px] font-medium">{task.updatedByName || 'admin'}</span>
+              <span className="text-[10px] opacity-60 hidden sm:inline ml-0.5">{formatTime(task.updatedAt).split(' ')[1]}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className={`flex gap-2 shrink-0 ${isGrid ? 'w-full grid grid-cols-2' : 'self-start sm:self-center'}`}>
+          {task.status === 'DESIGNING' && (
+            <>
+              <button 
+                onClick={() => handleUpdateStatus(task, 'NO_ORDER')}
+                disabled={actionLoading}
+                className={`px-4 py-2 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-lg text-xs font-bold transition-all border border-slate-200 disabled:opacity-50 whitespace-nowrap ${isGrid ? 'w-full' : ''}`}
+              >
+                Đuổi khách
+              </button>
+              <button 
+                onClick={() => handleUpdateStatus(task, 'WAITING_DEPOSIT')}
+                disabled={actionLoading}
+                className={`px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-md shadow-emerald-500/10 transition-all disabled:opacity-50 whitespace-nowrap ${isGrid ? 'w-full' : ''}`}
+              >
+                ✓ Hoàn thành
+              </button>
+            </>
+          )}
+
           {task.status === 'WAITING_DEPOSIT' && (
-             <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-bold rounded-md border border-yellow-200 uppercase">
-               Đợi cọc
-             </span>
-          )}
-          {task.status === 'SAPO_ORDERED' && (
-             <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-md border border-green-200 uppercase">
-               Sapo: {task.sapoOrderCode}
-             </span>
-          )}
-          {task.status === 'NO_ORDER' && (
-             <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded-md border border-red-200 uppercase">
-               Đuổi khách
-             </span>
+            <>
+              <button 
+                onClick={() => handleUpdateStatus(task, 'NO_ORDER')}
+                disabled={actionLoading}
+                className={`px-4 py-2 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-lg text-xs font-bold transition-all border border-slate-200 disabled:opacity-50 whitespace-nowrap ${isGrid ? 'w-full' : ''}`}
+              >
+                Đuổi khách
+              </button>
+              <button 
+                onClick={() => {
+                  setSelectedTask(task);
+                  setSapoModalOpen(true);
+                }}
+                disabled={actionLoading}
+                className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-md shadow-blue-500/10 transition-all disabled:opacity-50 flex justify-center items-center whitespace-nowrap ${isGrid ? 'w-full' : ''}`}
+              >
+                <FileText className="w-3 h-3 mr-1" />
+                Lên đơn
+              </button>
+            </>
           )}
         </div>
-        
-        <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-1">
-          <button 
-            onClick={() => handleOpenLink(task)}
-            className="text-blue-600 text-sm font-medium hover:underline flex items-center gap-1 underline-offset-2"
-          >
-            <ExternalLink className="w-4 h-4" />
-            Mở Link thiết kế
-          </button>
-          <span className="text-slate-400 text-xs hidden sm:inline">•</span>
-          <span className="text-slate-500 text-xs font-medium">
-            Thiết kế mở: <span className="font-bold text-slate-700">{task.linkClickCount} lần</span>
-          </span>
-          <span className="text-slate-400 text-xs hidden sm:inline">•</span>
-          <span className="text-slate-400 text-xs">
-            Cập nhật {formatTime(task.updatedAt)} bởi <span className="font-semibold">{task.updatedByName || 'admin'}</span>
-          </span>
-        </div>
       </div>
-
-      <div className="flex gap-2 self-start sm:self-center">
-        {task.status === 'DESIGNING' && (
-          <>
-            <button 
-              onClick={() => handleUpdateStatus(task, 'NO_ORDER')}
-              disabled={actionLoading}
-              className="px-4 py-2 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-lg text-xs font-bold transition-all border border-slate-200 disabled:opacity-50 whitespace-nowrap"
-            >
-              Đuổi khách
-            </button>
-            <button 
-              onClick={() => handleUpdateStatus(task, 'WAITING_DEPOSIT')}
-              disabled={actionLoading}
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-md shadow-emerald-500/10 transition-all disabled:opacity-50 whitespace-nowrap"
-            >
-              ✓ Hoàn thành
-            </button>
-          </>
-        )}
-
-        {task.status === 'WAITING_DEPOSIT' && (
-          <>
-            <button 
-              onClick={() => handleUpdateStatus(task, 'NO_ORDER')}
-              disabled={actionLoading}
-              className="px-4 py-2 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-lg text-xs font-bold transition-all border border-slate-200 disabled:opacity-50 whitespace-nowrap"
-            >
-              Đuổi khách
-            </button>
-            <button 
-              onClick={() => {
-                setSelectedTask(task);
-                setSapoModalOpen(true);
-              }}
-              disabled={actionLoading}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-md shadow-blue-500/10 transition-all disabled:opacity-50 flex items-center whitespace-nowrap"
-            >
-              <FileText className="w-3 h-3 mr-1" />
-              Đã lên đơn Sapo
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
+    );
+  };
 
   const EmptyState = ({ message }: { message: string }) => (
     <div className="text-center py-10 bg-gray-50/80 rounded-2xl border border-gray-200 border-dashed">
@@ -389,7 +354,7 @@ export const Dashboard = () => {
     </div>
   );
 
-  // Pagination & Filter Toolbar Component
+  // Pagination & Filter Toolbar Component for SAPO and NO_ORDER tabs
   const renderFilterAndPagination = (totalItems: number) => {
     const totalPages = pageSize === 0 ? 1 : Math.ceil(totalItems / pageSize);
     const startIdx = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
@@ -417,20 +382,6 @@ export const Dashboard = () => {
           )}
         </div>
 
-        {/* Creator Filter */}
-        <div className="flex items-center gap-1.5 bg-slate-100/80 px-2.5 py-1.5 rounded-xl border border-slate-200/60">
-          <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">Người tạo:</span>
-          <select
-            value={filterCreator}
-            onChange={(e) => setFilterCreator(e.target.value)}
-            className="bg-transparent text-xs font-bold text-slate-700 focus:outline-none cursor-pointer max-w-[120px] sm:max-w-[150px]"
-          >
-            <option value="ALL">Tất cả</option>
-            {uniqueCreators.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        </div>
         {/* Page Size Selector & Pagination */}
         <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2.5 sm:gap-3">
           {/* Page size dropdown */}
@@ -521,74 +472,68 @@ export const Dashboard = () => {
             </button>
           </div>
           
-          <button 
-            onClick={() => {
-              const createBtn = document.querySelector('button[aria-label="Tạo Task"]');
-              if (createBtn) (createBtn as HTMLButtonElement).click();
-              window.dispatchEvent(new CustomEvent('openCreateTaskModal'));
-            }}
-            className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-600/20 hover:bg-blue-700 active:scale-95 transition-all"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-            TẠO TASK MỚI
-          </button>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="hidden sm:flex items-center bg-slate-200/50 backdrop-blur-sm border border-white/20 p-1 rounded-xl">
+              <button 
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-blue-600 font-bold' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}
+                title="Dạng danh sách"
+              >
+                <List className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => setViewMode('grid2')}
+                className={`p-2 rounded-lg transition-all ${viewMode === 'grid2' ? 'bg-white shadow-sm text-blue-600 font-bold' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}
+                title="Dạng lưới (2 cột)"
+              >
+                <Grid2x2 className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => setViewMode('grid3')}
+                className={`p-2 rounded-lg transition-all ${viewMode === 'grid3' ? 'bg-white shadow-sm text-blue-600 font-bold' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}
+                title="Dạng lưới (3 cột)"
+              >
+                <Grid3x3 className="w-4 h-4" />
+              </button>
+            </div>
+
+            <button 
+              onClick={() => {
+                const createBtn = document.querySelector('button[aria-label="Tạo Task"]');
+                if (createBtn) (createBtn as HTMLButtonElement).click();
+                window.dispatchEvent(new CustomEvent('openCreateTaskModal'));
+              }}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-600/20 hover:bg-blue-700 active:scale-95 transition-all"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+              TẠO TASK MỚI
+            </button>
+          </div>
         </div>
 
-        {/* Toolbar filter & search */}
-        {activeTab === 'WAITING_DEPOSIT' && renderFilterAndPagination(filteredWaitingTasks.length)}
+        {/* Toolbar filter & search for SAPO_ORDERED & NO_ORDER tabs */}
         {activeTab === 'SAPO_ORDERED' && renderFilterAndPagination(filteredSapoTasks.length)}
         {activeTab === 'NO_ORDER' && renderFilterAndPagination(filteredNoOrderTasks.length)}
 
-        <div className="flex-1 flex flex-col gap-3 overflow-visible sm:overflow-y-auto pr-0 sm:pr-2 custom-scrollbar">
+        <div className={`flex-1 overflow-visible sm:overflow-y-auto pr-0 sm:pr-2 custom-scrollbar ${viewMode === 'list' ? 'flex flex-col gap-3' : viewMode === 'grid2' ? 'grid grid-cols-1 sm:grid-cols-2 gap-3 content-start' : 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 content-start'}`}>
           {activeTab === 'DESIGNING' && (
-            designingTasks.length > 0 ? (
-              <>
-                {designingNewTasks.length > 0 && (
-                  <div className="mb-2">
-                    <div className="flex items-center gap-3 mb-3">
-                      <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Task mới tạo</h4>
-                      <div className="h-px bg-slate-200 flex-1"></div>
-                      <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{designingNewTasks.length}</span>
-                    </div>
-                    <div className="flex flex-col gap-3">
-                      {designingNewTasks.map(renderTaskCard)}
-                    </div>
-                  </div>
-                )}
-                {designingInProgressTasks.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-3 mb-3 mt-2">
-                      <h4 className="text-sm font-bold text-blue-600 uppercase tracking-wider">Task đang làm</h4>
-                      <div className="h-px bg-blue-100 flex-1"></div>
-                      <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{designingInProgressTasks.length}</span>
-                    </div>
-                    <div className="flex flex-col gap-3">
-                      {designingInProgressTasks.map(renderTaskCard)}
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : <EmptyState message="Chưa có công việc trong mục Đang thiết kế." />
+            designingTasks.length > 0 ? designingTasks.map(renderTaskCard) : <EmptyState message="Chưa có công việc trong mục Đang thiết kế." />
           )}
           {activeTab === 'WAITING_DEPOSIT' && (
-            paginatedWaitingTasks.length > 0 ? (
-              paginatedWaitingTasks.map(renderTaskCard)
-            ) : (
-              <EmptyState message={searchTerm || filterCreator !== 'ALL' ? "Không tìm thấy công việc nào khớp với bộ lọc." : "Chưa có công việc trong mục Đợi cọc."} />
-            )
+            waitingTasks.length > 0 ? waitingTasks.map(renderTaskCard) : <EmptyState message="Chưa có công việc trong mục Đợi cọc." />
           )}
           {activeTab === 'SAPO_ORDERED' && (
             paginatedSapoTasks.length > 0 ? (
               paginatedSapoTasks.map(renderTaskCard)
             ) : (
-              <EmptyState message={searchTerm || filterCreator !== 'ALL' ? "Không tìm thấy công việc nào khớp với từ khóa tìm kiếm." : "Chưa có công việc trong mục Đã lên đơn Sapo."} />
+              <EmptyState message={searchTerm ? "Không tìm thấy công việc nào khớp với từ khóa tìm kiếm." : "Chưa có công việc trong mục Đã lên đơn Sapo."} />
             )
           )}
           {activeTab === 'NO_ORDER' && (
             paginatedNoOrderTasks.length > 0 ? (
               paginatedNoOrderTasks.map(renderTaskCard)
             ) : (
-              <EmptyState message={searchTerm || filterCreator !== 'ALL' ? "Không tìm thấy công việc nào khớp với từ khóa tìm kiếm." : "Chưa có công việc trong mục Đuổi khách."} />
+              <EmptyState message={searchTerm ? "Không tìm thấy công việc nào khớp với từ khóa tìm kiếm." : "Chưa có công việc trong mục Đuổi khách."} />
             )
           )}
         </div>
@@ -617,7 +562,7 @@ export const Dashboard = () => {
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-500 font-semibold flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                Đang thiết kế
+                Đang thiết kế (Cũ → Mới)
               </span>
               <span className="bg-slate-200/50 px-2 py-0.5 rounded-full font-bold text-slate-700">{designingTasks.length}</span>
             </div>

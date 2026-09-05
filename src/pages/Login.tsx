@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { auth } from '../lib/firebase';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 
@@ -27,9 +26,11 @@ export const Login = () => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
       // Auto-recreate user document if it was accidentally deleted
+      const { doc, setDoc } = await import('firebase/firestore');
+      const { db } = await import('../lib/firebase');
+      
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         email: email,
-        displayName: username.trim().toUpperCase(),
         name: username.trim().toUpperCase(),
         role: username.trim().toLowerCase() === 'admin' ? 'ADMIN' : 'DESIGNER',
         active: true

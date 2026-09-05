@@ -27,15 +27,14 @@ service cloud.firestore {
 
     // Users Collection
     match /users/{userId} {
-      // Users can read their own document, or active users can read all users (for UI rendering names)
+      // Users can read their own document, or active users can read all users
       allow read: if isSignedIn() && (request.auth.uid == userId || isUserActive());
       
-      // Only Admin can write users, EXCEPT users can create their own document if it doesn't exist
-      allow write: if isSignedIn() && (
-        (isUserActive() && getUserRole() == 'ADMIN')
-        ||
-        (request.auth.uid == userId && !exists(/databases/$(database)/documents/users/$(userId)))
-      );
+      // Allow user to write their own profile
+      allow write: if isSignedIn() && request.auth.uid == userId;
+
+      // Admin can update/delete any user
+      allow update, delete: if isSignedIn() && isUserActive() && getUserRole() == 'ADMIN';
     }
 
     // Tasks Collection

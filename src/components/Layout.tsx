@@ -3,7 +3,6 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { LogOut, Settings, Plus, Menu, X, Database, Users } from 'lucide-react';
 import { CreateTaskModal } from './CreateTaskModal';
-import { ProfileModal } from './ProfileModal';
 
 const roleMap: Record<string, string> = {
   ADMIN: 'Quản trị',
@@ -17,7 +16,6 @@ export const Layout = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   React.useEffect(() => {
@@ -68,11 +66,11 @@ export const Layout = () => {
           {/* User Profile */}
           <div className="hidden sm:flex items-center gap-3 bg-white/60 px-4 py-2 rounded-full border border-white/40 relative">
             <div className="flex flex-col items-end">
-              <span className="text-sm font-bold text-slate-800">{user.displayName || (user as any).name || 'User'}</span>
-              <span className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider">{roleMap[user.role]}</span>
+              <span className="text-sm font-bold text-slate-800">{user.displayName || user.username || 'User'}</span>
+              <span className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider">{roleMap[user.role] || user.role}</span>
             </div>
             <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-              {(user.displayName || (user as any).name || 'U').charAt(0).toUpperCase()}
+              {(user.displayName || user.username || '?').charAt(0).toUpperCase()}
             </div>
           </div>
 
@@ -86,19 +84,10 @@ export const Layout = () => {
               </button>
 
               {isSettingsOpen && (
-                <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 focus:outline-none">
+                <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 focus:outline-none z-50">
                   <div className="px-4 py-3 sm:hidden">
-                    <p className="text-sm font-bold text-slate-800 truncate">{user.displayName || (user as any).name || 'User'}</p>
-                    <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider truncate">{roleMap[user.role]}</p>
-                  </div>
-                  <div className="py-1">
-                    <button
-                      onClick={() => { setIsSettingsOpen(false); setIsProfileModalOpen(true); }}
-                      className="group flex w-full items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                    >
-                      <Settings className="mr-3 h-4 w-4 text-slate-400 group-hover:text-slate-500" />
-                      Hồ sơ của tôi
-                    </button>
+                    <p className="text-sm font-bold text-slate-800 truncate">{user.displayName || user.username || 'User'}</p>
+                    <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider truncate">{roleMap[user.role] || user.role}</p>
                   </div>
                   {user.role === 'ADMIN' && (
                     <div className="py-1">
@@ -149,9 +138,6 @@ export const Layout = () => {
 
       {isCreateModalOpen && (
         <CreateTaskModal onClose={() => setIsCreateModalOpen(false)} />
-      )}
-      {isProfileModalOpen && (
-        <ProfileModal onClose={() => setIsProfileModalOpen(false)} />
       )}
     </div>
   );

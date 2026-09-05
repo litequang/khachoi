@@ -1,8 +1,6 @@
 {
-  "name": "Remix Task",
-  "description": "",
+  "name": "Design Task Manager",
+  "description": "Quản lý tiến độ thiết kế, đơn hàng Sapo và trạng thái cọc với đồng bộ Firebase Realtime",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
