@@ -30,7 +30,8 @@ import {
   Grid2x2,
   Grid3x3,
   Eye,
-  User
+  User,
+  XCircle
 } from 'lucide-react';
 
 export const Dashboard = () => {
@@ -44,6 +45,7 @@ export const Dashboard = () => {
   const [activeTab, setActiveTab] = useState<Task['status']>('DESIGNING');
   const [rejectTask, setRejectTask] = useState<Task | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'grid2' | 'grid3'>('list');
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
   // Search & Pagination controls for SAPO_ORDERED and NO_ORDER tabs
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,7 +80,15 @@ export const Dashboard = () => {
   const designingTasks = useMemo(() => {
     return tasks
       .filter(t => t.status === 'DESIGNING')
-      .sort((a, b) => getMs(a.createdAt || a.updatedAt) - getMs(b.createdAt || b.updatedAt));
+      .sort((a, b) => {
+        const getSortTime = (task: Task) => {
+          const clickCount = task.linkClickCount || 0;
+          return clickCount > 0 
+            ? getMs(task.updatedAt) 
+            : getMs(task.createdAt || task.updatedAt);
+        };
+        return getSortTime(a) - getSortTime(b);
+      });
   }, [tasks]);
 
   // 2. Tab Đợi cọc: sắp xếp từ CŨ -> MỚI (ưu tiên xử lý khách đã hoàn thành thiết kế từ lâu)
@@ -252,7 +262,7 @@ export const Dashboard = () => {
     const isGrid = viewMode !== 'list';
     
     return (
-      <div key={task.id} className={`bg-white/60 border border-white/40 backdrop-blur-sm p-4 rounded-2xl flex flex-col ${isGrid ? '' : 'sm:flex-row sm:items-center'} justify-between hover:border-blue-300 transition-colors shadow-sm gap-4`}>
+      <div key={task.id} className={`relative bg-white/60 border border-white/40 backdrop-blur-sm p-4 rounded-2xl flex flex-col ${isGrid ? '' : 'sm:flex-row sm:items-center'} justify-between hover:border-blue-300 transition-colors shadow-sm gap-4 ${activeDropdown === task.id ? 'z-50' : 'z-10'}`}>
         <div className="flex flex-col gap-1.5 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-bold text-slate-800 truncate" title={task.name}>{task.name}</h3>
@@ -274,15 +284,6 @@ export const Dashboard = () => {
           </div>
           
           <div className="flex flex-wrap items-center gap-3 mt-0.5">
-            <button 
-              onClick={() => handleOpenLink(task)}
-              title="Mở Link thiết kế"
-              className="text-blue-600 hover:bg-blue-50 p-1.5 -ml-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold"
-            >
-              <ExternalLink className="w-4 h-4" />
-              {!isGrid && <span>Mở link</span>}
-            </button>
-            
             <div className="flex items-center gap-1 text-slate-500 text-xs" title={`Số lần mở: ${task.linkClickCount || 0}`}>
               <Eye className="w-3.5 h-3.5" />
               <span className="font-bold text-slate-700">{task.linkClickCount || 0}</span>
@@ -301,47 +302,86 @@ export const Dashboard = () => {
           </div>
         </div>
 
-        <div className={`flex gap-2 shrink-0 ${isGrid ? 'w-full grid grid-cols-2' : 'self-start sm:self-center'}`}>
-          {task.status === 'DESIGNING' && (
-            <>
-              <button 
-                onClick={() => handleUpdateStatus(task, 'NO_ORDER')}
-                disabled={actionLoading}
-                className={`px-4 py-2 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-lg text-xs font-bold transition-all border border-slate-200 disabled:opacity-50 whitespace-nowrap ${isGrid ? 'w-full' : ''}`}
-              >
-                Đuổi khách
-              </button>
-              <button 
-                onClick={() => handleUpdateStatus(task, 'WAITING_DEPOSIT')}
-                disabled={actionLoading}
-                className={`px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-md shadow-emerald-500/10 transition-all disabled:opacity-50 whitespace-nowrap ${isGrid ? 'w-full' : ''}`}
-              >
-                ✓ Hoàn thành
-              </button>
-            </>
-          )}
+        <div className={`flex gap-2 shrink-0 ${isGrid ? 'w-full grid grid-cols-2' : 'self-start sm:self-center'} relative`}>
+          <button 
+            onClick={() => handleOpenLink(task)}
+            className={`px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-xs font-bold shadow-md shadow-blue-500/10 transition-all flex justify-center items-center gap-1.5 whitespace-nowrap ${isGrid ? 'w-full' : ''}`}
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Mở Link
+          </button>
 
-          {task.status === 'WAITING_DEPOSIT' && (
-            <>
+          {(task.status === 'DESIGNING' || task.status === 'WAITING_DEPOSIT') && (
+            <div className={`relative ${isGrid ? 'w-full' : ''}`}>
               <button 
-                onClick={() => handleUpdateStatus(task, 'NO_ORDER')}
+                onClick={() => setActiveDropdown(activeDropdown === task.id ? null : task.id)}
                 disabled={actionLoading}
-                className={`px-4 py-2 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-lg text-xs font-bold transition-all border border-slate-200 disabled:opacity-50 whitespace-nowrap ${isGrid ? 'w-full' : ''}`}
+                className={`px-4 py-2 ${task.status === 'DESIGNING' ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/10' : 'bg-slate-700 hover:bg-slate-800 shadow-slate-500/10'} text-white rounded-lg text-xs font-bold shadow-md transition-all flex justify-center items-center gap-1.5 whitespace-nowrap w-full`}
               >
-                Đuổi khách
+                {task.status === 'DESIGNING' ? 'Hoàn thành' : 'Xử lý'} 
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${activeDropdown === task.id ? 'rotate-180' : ''}`} />
               </button>
-              <button 
-                onClick={() => {
-                  setSelectedTask(task);
-                  setSapoModalOpen(true);
-                }}
-                disabled={actionLoading}
-                className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-md shadow-blue-500/10 transition-all disabled:opacity-50 flex justify-center items-center whitespace-nowrap ${isGrid ? 'w-full' : ''}`}
-              >
-                <FileText className="w-3 h-3 mr-1" />
-                Lên đơn
-              </button>
-            </>
+
+              {activeDropdown === task.id && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setActiveDropdown(null)}
+                  ></div>
+                  <div className="absolute right-0 top-full mt-1.5 w-44 bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 py-1.5 z-50 overflow-hidden">
+                    {task.status === 'DESIGNING' && (
+                      <>
+                        <button 
+                          onClick={() => {
+                            handleUpdateStatus(task, 'WAITING_DEPOSIT');
+                            setActiveDropdown(null);
+                          }}
+                          className="w-full text-left px-4 py-2.5 hover:bg-emerald-50 text-emerald-600 text-xs font-bold flex items-center gap-2 transition-colors"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          Hoàn thành
+                        </button>
+                        <button 
+                          onClick={() => {
+                            handleUpdateStatus(task, 'NO_ORDER');
+                            setActiveDropdown(null);
+                          }}
+                          className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-red-600 text-xs font-bold flex items-center gap-2 transition-colors"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Đuổi khách
+                        </button>
+                      </>
+                    )}
+                    {task.status === 'WAITING_DEPOSIT' && (
+                      <>
+                        <button 
+                          onClick={() => {
+                            setSelectedTask(task);
+                            setSapoModalOpen(true);
+                            setActiveDropdown(null);
+                          }}
+                          className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-blue-600 text-xs font-bold flex items-center gap-2 transition-colors"
+                        >
+                          <FileText className="w-4 h-4" />
+                          Lên đơn Sapo
+                        </button>
+                        <button 
+                          onClick={() => {
+                            handleUpdateStatus(task, 'NO_ORDER');
+                            setActiveDropdown(null);
+                          }}
+                          className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-red-600 text-xs font-bold flex items-center gap-2 transition-colors"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Đuổi khách
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -610,6 +650,7 @@ export const Dashboard = () => {
         </div>
         
         {/* Database Status Card with Collapsible Firebase Usage */}
+        {user?.role === 'ADMIN' && (
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-xl shadow-slate-900/20 text-white flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -701,6 +742,7 @@ export const Dashboard = () => {
                   <Info className="w-4 h-4 flex-shrink-0" />
                   <span>Khi nào cần nâng cấp gói Blaze?</span>
                 </div>
+
                 <p className="text-slate-300 leading-relaxed text-[11px]">
                   Bạn chỉ cần nâng cấp trả phí khi công ty có <span className="font-bold text-white">&gt; 100 nhân viên</span> mở app cùng lúc hoặc xử lý <span className="font-bold text-white">&gt; 20.000 task</span> mỗi ngày.
                 </p>
@@ -711,6 +753,7 @@ export const Dashboard = () => {
             </div>
           )}
         </div>
+        )}
       </aside>
 
       {/* Sapo Modal */}

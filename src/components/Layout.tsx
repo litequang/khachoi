@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { LogOut, Settings, Plus, Menu, X, Database, Users } from 'lucide-react';
 import { CreateTaskModal } from './CreateTaskModal';
+import { UserProfileModal } from './UserProfileModal';
 
 const roleMap: Record<string, string> = {
   ADMIN: 'Quản trị',
@@ -15,6 +16,7 @@ export const Layout = () => {
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
@@ -47,7 +49,7 @@ export const Layout = () => {
           Đang offline
         </div>
       )}
-      <header className="flex items-center justify-between px-4 sm:px-8 py-4 bg-white/40 backdrop-blur-md border-b border-white/20 z-10">
+      <header className="flex items-center justify-between px-4 sm:px-8 py-4 bg-white/40 backdrop-blur-md border-b border-white/20 z-[60]">
         <div className="flex items-center gap-3">
           <Link to="/" className="flex items-center gap-2.5">
             <img src="/icon.svg" alt="Logo" className="w-9 h-9 rounded-xl shadow-md shadow-blue-500/20 object-contain" />
@@ -89,8 +91,20 @@ export const Layout = () => {
                     <p className="text-sm font-bold text-slate-800 truncate">{user.displayName || user.username || 'User'}</p>
                     <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider truncate">{roleMap[user.role] || user.role}</p>
                   </div>
+                  <div className="py-1">
+                    <button
+                      onClick={() => {
+                        setIsSettingsOpen(false);
+                        setIsProfileModalOpen(true);
+                      }}
+                      className="w-full text-left group flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                    >
+                      <Settings className="mr-3 h-4 w-4 text-slate-400 group-hover:text-slate-500" />
+                      Đổi thông tin cá nhân
+                    </button>
+                  </div>
                   {user.role === 'ADMIN' && (
-                    <div className="py-1">
+                    <div className="py-1 border-t border-gray-100">
                       <Link
                         to="/users"
                         className="group flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
@@ -138,6 +152,10 @@ export const Layout = () => {
 
       {isCreateModalOpen && (
         <CreateTaskModal onClose={() => setIsCreateModalOpen(false)} />
+      )}
+      
+      {isProfileModalOpen && (
+        <UserProfileModal onClose={() => setIsProfileModalOpen(false)} />
       )}
     </div>
   );
