@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
@@ -31,7 +32,8 @@ import {
   Grid3x3,
   Eye,
   User,
-  XCircle
+  XCircle,
+  RotateCcw
 } from 'lucide-react';
 
 export const Dashboard = () => {
@@ -77,19 +79,21 @@ export const Dashboard = () => {
   const getMs = (ts: any) => ts?.toMillis ? ts.toMillis() : (ts?.seconds ? ts.seconds * 1000 : 0);
 
   // 1. Tab Đang thiết kế: sắp xếp từ cũ -> mới (ưu tiên làm trước)
-  const designingTasks = useMemo(() => {
+  // 1a. Task mới tạo (chưa mở link): sắp xếp theo thời gian tạo từ cũ -> mới
+  const newDesigningTasks = useMemo(() => {
     return tasks
-      .filter(t => t.status === 'DESIGNING')
-      .sort((a, b) => {
-        const getSortTime = (task: Task) => {
-          const clickCount = task.linkClickCount || 0;
-          return clickCount > 0 
-            ? getMs(task.updatedAt) 
-            : getMs(task.createdAt || task.updatedAt);
-        };
-        return getSortTime(a) - getSortTime(b);
-      });
+      .filter(t => t.status === 'DESIGNING' && (!t.linkClickCount || t.linkClickCount === 0))
+      .sort((a, b) => getMs(a.createdAt || a.updatedAt) - getMs(b.createdAt || b.updatedAt));
   }, [tasks]);
+
+  // 1b. Task đang làm (đã mở link): sắp xếp theo thời gian cập nhật từ cũ -> mới
+  const inProgressDesigningTasks = useMemo(() => {
+    return tasks
+      .filter(t => t.status === 'DESIGNING' && (t.linkClickCount && t.linkClickCount > 0))
+      .sort((a, b) => getMs(a.updatedAt) - getMs(b.updatedAt));
+  }, [tasks]);
+
+  const designingTasksCount = newDesigningTasks.length + inProgressDesigningTasks.length;
 
   // 2. Tab Đợi cọc: sắp xếp từ CŨ -> MỚI (ưu tiên xử lý khách đã hoàn thành thiết kế từ lâu)
   const waitingTasks = useMemo(() => {
@@ -258,8 +262,9 @@ export const Dashboard = () => {
     });
   };
 
-  const renderTaskCard = (task: Task) => {
+  const renderTaskCard = (task: Task, index: number = 0) => {
     const isGrid = viewMode !== 'list';
+    const isFirstRow = index < (viewMode === 'grid3' ? 3 : viewMode === 'grid2' ? 2 : 1);
     
     return (
       <div key={task.id} className={`relative bg-white/60 border border-white/40 backdrop-blur-sm p-4 rounded-2xl flex flex-col ${isGrid ? '' : 'sm:flex-row sm:items-center'} justify-between hover:border-blue-300 transition-colors shadow-sm gap-4 ${activeDropdown === task.id ? 'z-50' : 'z-10'}`}>
@@ -311,14 +316,20 @@ export const Dashboard = () => {
             Mở Link
           </button>
 
-          {(task.status === 'DESIGNING' || task.status === 'WAITING_DEPOSIT') && (
+          {(task.status === 'DESIGNING' || task.status === 'WAITING_DEPOSIT' || task.status === 'NO_ORDER') && (
             <div className={`relative ${isGrid ? 'w-full' : ''}`}>
               <button 
                 onClick={() => setActiveDropdown(activeDropdown === task.id ? null : task.id)}
                 disabled={actionLoading}
-                className={`px-4 py-2 ${task.status === 'DESIGNING' ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/10' : 'bg-slate-700 hover:bg-slate-800 shadow-slate-500/10'} text-white rounded-lg text-xs font-bold shadow-md transition-all flex justify-center items-center gap-1.5 whitespace-nowrap w-full`}
+                className={`px-4 py-2 ${
+                  task.status === 'DESIGNING' 
+                    ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/10' 
+                    : task.status === 'WAITING_DEPOSIT' 
+                    ? 'bg-slate-700 hover:bg-slate-800 shadow-slate-500/10' 
+                    : 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/10'
+                } text-white rounded-lg text-xs font-bold shadow-md transition-all flex justify-center items-center gap-1.5 whitespace-nowrap w-full`}
               >
-                {task.status === 'DESIGNING' ? 'Hoàn thành' : 'Xử lý'} 
+                {task.status === 'DESIGNING' ? 'Hoàn thành' : task.status === 'WAITING_DEPOSIT' ? 'Xử lý' : 'Khôi phục'} 
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${activeDropdown === task.id ? 'rotate-180' : ''}`} />
               </button>
 
@@ -328,7 +339,7 @@ export const Dashboard = () => {
                     className="fixed inset-0 z-40" 
                     onClick={() => setActiveDropdown(null)}
                   ></div>
-                  <div className="absolute right-0 top-full mt-1.5 w-44 bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 py-1.5 z-50 overflow-hidden">
+                  <div className={`absolute right-0 ${isFirstRow ? 'top-full mt-1.5' : 'bottom-full mb-1.5'} w-52 bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 py-1.5 z-[60] overflow-hidden`}>
                     {task.status === 'DESIGNING' && (
                       <>
                         <button 
@@ -336,17 +347,28 @@ export const Dashboard = () => {
                             handleUpdateStatus(task, 'WAITING_DEPOSIT');
                             setActiveDropdown(null);
                           }}
-                          className="w-full text-left px-4 py-2.5 hover:bg-emerald-50 text-emerald-600 text-xs font-bold flex items-center gap-2 transition-colors"
+                          className="w-full text-left px-4 py-2.5 hover:bg-emerald-50 text-emerald-600 text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap"
                         >
                           <CheckCircle2 className="w-4 h-4" />
-                          Hoàn thành
+                          Đợi cọc
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setSelectedTask(task);
+                            setSapoModalOpen(true);
+                            setActiveDropdown(null);
+                          }}
+                          className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-blue-600 text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap"
+                        >
+                          <FileText className="w-4 h-4" />
+                          Mã đơn Sapo
                         </button>
                         <button 
                           onClick={() => {
                             handleUpdateStatus(task, 'NO_ORDER');
                             setActiveDropdown(null);
                           }}
-                          className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-red-600 text-xs font-bold flex items-center gap-2 transition-colors"
+                          className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-red-600 text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap"
                         >
                           <XCircle className="w-4 h-4" />
                           Đuổi khách
@@ -361,7 +383,7 @@ export const Dashboard = () => {
                             setSapoModalOpen(true);
                             setActiveDropdown(null);
                           }}
-                          className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-blue-600 text-xs font-bold flex items-center gap-2 transition-colors"
+                          className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-blue-600 text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap"
                         >
                           <FileText className="w-4 h-4" />
                           Lên đơn Sapo
@@ -371,10 +393,36 @@ export const Dashboard = () => {
                             handleUpdateStatus(task, 'NO_ORDER');
                             setActiveDropdown(null);
                           }}
-                          className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-red-600 text-xs font-bold flex items-center gap-2 transition-colors"
+                          className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-red-600 text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap"
                         >
                           <XCircle className="w-4 h-4" />
                           Đuổi khách
+                        </button>
+                      </>
+                    )}
+                    {task.status === 'NO_ORDER' && (
+                      <>
+                        <button 
+                          onClick={() => {
+                            handleUpdateStatus(task, 'DESIGNING');
+                            setActiveDropdown(null);
+                          }}
+                          className="w-full text-left px-4 py-2.5 hover:bg-amber-50 text-amber-600 text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap"
+                          title="Khách đổi ý muốn làm tiếp, chuyển về Đang thiết kế"
+                        >
+                          <RotateCcw className="w-4 h-4 text-amber-600 shrink-0" />
+                          Khách ăn năn (Làm tiếp)
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setSelectedTask(task);
+                            setSapoModalOpen(true);
+                            setActiveDropdown(null);
+                          }}
+                          className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-blue-600 text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap"
+                        >
+                          <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                          Mã đơn Sapo
                         </button>
                       </>
                     )}
@@ -490,7 +538,7 @@ export const Dashboard = () => {
               onClick={() => setActiveTab('DESIGNING')}
               className={`px-4 sm:px-5 py-2.5 rounded-lg text-sm transition-all whitespace-nowrap ${activeTab === 'DESIGNING' ? 'font-bold bg-white text-blue-600 shadow-sm border border-slate-200' : 'font-semibold text-slate-600 hover:bg-white/40'}`}
             >
-              Đang thiết kế ({designingTasks.length})
+              Đang thiết kế ({designingTasksCount})
             </button>
             <button 
               onClick={() => setActiveTab('WAITING_DEPOSIT')}
@@ -557,21 +605,47 @@ export const Dashboard = () => {
 
         <div className={`flex-1 overflow-visible sm:overflow-y-auto pr-0 sm:pr-2 custom-scrollbar ${viewMode === 'list' ? 'flex flex-col gap-3' : viewMode === 'grid2' ? 'grid grid-cols-1 sm:grid-cols-2 gap-3 content-start' : 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 content-start'}`}>
           {activeTab === 'DESIGNING' && (
-            designingTasks.length > 0 ? designingTasks.map(renderTaskCard) : <EmptyState message="Chưa có công việc trong mục Đang thiết kế." />
+            designingTasksCount > 0 ? (
+              <>
+                {newDesigningTasks.length > 0 && (
+                  <>
+                    <div className="col-span-full pt-1 pb-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold text-blue-600 uppercase tracking-wider bg-blue-50 px-3 py-1 rounded-full border border-blue-100">Task mới tạo</span>
+                        <div className="h-px bg-slate-200 flex-1"></div>
+                      </div>
+                    </div>
+                    {newDesigningTasks.map((t, i) => renderTaskCard(t, i))}
+                  </>
+                )}
+                
+                {inProgressDesigningTasks.length > 0 && (
+                  <>
+                    <div className="col-span-full pt-4 pb-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold text-amber-600 uppercase tracking-wider bg-amber-50 px-3 py-1 rounded-full border border-amber-100">Task đang làm</span>
+                        <div className="h-px bg-slate-200 flex-1"></div>
+                      </div>
+                    </div>
+                    {inProgressDesigningTasks.map((t, i) => renderTaskCard(t, newDesigningTasks.length + i))}
+                  </>
+                )}
+              </>
+            ) : <EmptyState message="Chưa có công việc trong mục Đang thiết kế." />
           )}
           {activeTab === 'WAITING_DEPOSIT' && (
-            waitingTasks.length > 0 ? waitingTasks.map(renderTaskCard) : <EmptyState message="Chưa có công việc trong mục Đợi cọc." />
+            waitingTasks.length > 0 ? waitingTasks.map((t, i) => renderTaskCard(t, i)) : <EmptyState message="Chưa có công việc trong mục Đợi cọc." />
           )}
           {activeTab === 'SAPO_ORDERED' && (
             paginatedSapoTasks.length > 0 ? (
-              paginatedSapoTasks.map(renderTaskCard)
+              paginatedSapoTasks.map((t, i) => renderTaskCard(t, i))
             ) : (
               <EmptyState message={searchTerm ? "Không tìm thấy công việc nào khớp với từ khóa tìm kiếm." : "Chưa có công việc trong mục Đã lên đơn Sapo."} />
             )
           )}
           {activeTab === 'NO_ORDER' && (
             paginatedNoOrderTasks.length > 0 ? (
-              paginatedNoOrderTasks.map(renderTaskCard)
+              paginatedNoOrderTasks.map((t, i) => renderTaskCard(t, i))
             ) : (
               <EmptyState message={searchTerm ? "Không tìm thấy công việc nào khớp với từ khóa tìm kiếm." : "Chưa có công việc trong mục Đuổi khách."} />
             )
@@ -604,7 +678,7 @@ export const Dashboard = () => {
                 <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                 Đang thiết kế (Cũ → Mới)
               </span>
-              <span className="bg-slate-200/50 px-2 py-0.5 rounded-full font-bold text-slate-700">{designingTasks.length}</span>
+              <span className="bg-slate-200/50 px-2 py-0.5 rounded-full font-bold text-slate-700">{designingTasksCount}</span>
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-500 font-semibold flex items-center gap-1.5">
@@ -646,6 +720,14 @@ export const Dashboard = () => {
                 <span className="text-lg font-black text-rose-500">{tasks.length > 0 ? ((allNoOrderTasks.length / tasks.length) * 100).toFixed(1) : 0}%</span>
               </div>
             </div>
+
+            <Link
+              to="/analytics"
+              className="mt-2 w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs border border-blue-200/80 transition-all active:scale-95 shadow-xs"
+            >
+              <BarChart3 className="w-4 h-4 text-blue-600" />
+              <span>Xem phân tích biểu đồ & tốc độ</span>
+            </Link>
           </div>
         </div>
         

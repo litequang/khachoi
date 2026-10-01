@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { LogOut, Settings, Plus, Menu, X, Database, Users } from 'lucide-react';
+import { LogOut, Settings, Plus, Menu, X, Database, Users, BarChart3, LayoutDashboard } from 'lucide-react';
 import { CreateTaskModal } from './CreateTaskModal';
 import { UserProfileModal } from './UserProfileModal';
 
@@ -50,7 +50,7 @@ export const Layout = () => {
         </div>
       )}
       <header className="flex items-center justify-between px-4 sm:px-8 py-4 bg-white/40 backdrop-blur-md border-b border-white/20 z-[60]">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4 sm:gap-8">
           <Link to="/" className="flex items-center gap-2.5">
             <img src="/icon.svg" alt="Logo" className="w-9 h-9 rounded-xl shadow-md shadow-blue-500/20 object-contain" />
             <div className="flex flex-col">
@@ -62,6 +62,33 @@ export const Layout = () => {
               </span>
             </div>
           </Link>
+
+          {/* Navigation Links */}
+          <nav className="flex items-center gap-1 bg-white/50 p-1 rounded-2xl border border-white/60">
+            <Link
+              to="/"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                location.pathname === '/' 
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Công việc</span>
+            </Link>
+
+            <Link
+              to="/analytics"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                location.pathname === '/analytics' 
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Phân tích</span>
+            </Link>
+          </nav>
         </div>
         
         <div className="flex items-center gap-3 sm:gap-6">
@@ -92,6 +119,14 @@ export const Layout = () => {
                     <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider truncate">{roleMap[user.role] || user.role}</p>
                   </div>
                   <div className="py-1">
+                    <Link
+                      to="/analytics"
+                      onClick={() => setIsSettingsOpen(false)}
+                      className="w-full text-left group flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                    >
+                      <BarChart3 className="mr-3 h-4 w-4 text-slate-400 group-hover:text-slate-500" />
+                      Phân tích & Thống kê
+                    </Link>
                     <button
                       onClick={() => {
                         setIsSettingsOpen(false);

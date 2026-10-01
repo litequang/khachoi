@@ -9,6 +9,7 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { AdminUsers } from './pages/AdminUsers';
 import { AdminBackup } from './pages/AdminBackup';
+import { Analytics } from './pages/Analytics';
 import { Layout } from './components/Layout';
 
 const ProtectedRoute = ({ allowedRoles }: { allowedRoles?: string[] }) => {
@@ -43,6 +44,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/analytics" element={<Analytics />} />
             </Route>
           </Route>
           

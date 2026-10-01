@@ -11,15 +11,19 @@ service cloud.firestore {
     }
 
     function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) 
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : null;
     }
 
     function isUserActive() {
-      return getUserData().active == true;
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
     }
 
     function getUserRole() {
-      return getUserData().role;
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role : null;
     }
 
     function incoming() { return request.resource.data; }
@@ -27,14 +31,17 @@ service cloud.firestore {
 
     // Users Collection
     match /users/{userId} {
-      // Users can read their own document, or active users can read all users
-      allow read: if isSignedIn() && (request.auth.uid == userId || isUserActive());
+      // Allow users to get their own document
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      // Allow active users to list/read all users
+      allow read: if isSignedIn() && isUserActive();
       
-      // Allow user to write their own profile
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      // Allow user to write their own profile, but prevent escalating privileges
+      allow update: if isSignedIn() && request.auth.uid == userId && 
+                    (!incoming().diff(existing()).affectedKeys().hasAny(['role', 'active']) || getUserRole() == 'ADMIN');
 
-      // Admin can update/delete any user
-      allow update, delete: if isSignedIn() && isUserActive() && getUserRole() == 'ADMIN';
+      // Admin can create/update/delete any user
+      allow create, update, delete: if isSignedIn() && isUserActive() && getUserRole() == 'ADMIN';
     }
 
     // Tasks Collection
